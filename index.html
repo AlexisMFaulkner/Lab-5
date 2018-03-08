@@ -1,0 +1,23 @@
+<!doctype html>
+<script src="code/game.js"></script>
+<script src="code/game_levels.js"></script>
+
+<link rel="stylesheet" href="css/game.css">
+<style>
+body {
+    color: blue;
+    font-size: 20px;
+}
+
+h1 {
+    color: red;
+}
+</style>
+<body>
+  <h1>The Ground is Lava!</h1>
+<p>Avoid the lava by jumping on the pillars. Collect some water to stay hydrated.</p>
+
+  <script>
+    runGame(GAME_LEVELS, DOMDisplay);
+  </script>
+</body>
