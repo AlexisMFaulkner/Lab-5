@@ -7,11 +7,12 @@
                  background-size: 100px 100px; }
 .wall          { background: url("https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcS9MczBVg7cic8FOV2lB7XYZBuTPTtJmiQswa2fmYd1KgGL3KiYJw");
                 background-size: auto;  }
-.water         { background: blue;}
+
 
 .actor  { position: absolute;  }
-.player { background: yellow; }
-
+.player { background: rgb(244, 235, 65); }
+.water { background: rgb(65, 190, 244); }
+.gatorade { background: rgb(191, 244, 66); }
 .game {
   overflow: hidden;
   max-width: 600px;

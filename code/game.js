@@ -1,3 +1,8 @@
+var actorChars = {
+  '@': Player,
+  'o': Water,
+  '*': Gatorade
+};
 function Level(plan) {
   // Use the length of a single row to set the width of the level
   this.width = plan[0].length;
@@ -7,6 +12,7 @@ function Level(plan) {
 
   // Store the individual tiles in our own, separate array
   this.grid = [];
+  this.actors = [];
 
   // Loop through each row in the plan, creating an array in our grid
   for (var y = 0; y < this.height; y++) {
@@ -19,16 +25,14 @@ function Level(plan) {
 
       var ch = line[x], fieldType = null;
       // Use if and else to handle the three cases
-      if (ch==='@')
-        // Create a new player at that grid position.
-        this.player = new Player(new Vector(x, y));
+      var Actor = actorChars[ch];
+      if (Actor)
+      this.actors.push(new Actor(new Vector(x,y), ch));
       else if (ch == "x")
         fieldType = "wall";
       // Because there is a third case (space ' '), use an "else if" instead of "else"
       else if (ch == "!")
-      fieldType = "lava";
-      else if (ch == "o")
-      fieldType = "water";
+        fieldType = "lava";
 
       // "Push" the fieldType, which is a string, onto the gridLine array (at the end).
       gridLine.push(fieldType);
@@ -36,7 +40,24 @@ function Level(plan) {
     // Push the entire row onto the array of rows.
     this.grid.push(gridLine);
   }
+  this.player = this.actors.filter(function(actor) {
+    return actor.type == "player";
+  })[0];
 }
+
+function Water(pos) {
+  this.basePos = this.pos = pos.plus(new Vector(0.2,0.1));
+  this.size = new Vector(0.6, 1);
+  this.wobble = Math.random() * Math.PI * 2;
+}
+Water.prototype.type = 'water';
+
+function Gatorade(pos) {
+  this.basePos = this.pos = pos.plus(new Vector(0.2,0.1));
+  this.size = new Vector(0.6, 1);
+  this.shake = Math.random() * Math.PI * 2;
+}
+Gatorade.prototype.type = 'gatorade';
 
 function Vector(x, y) {
   this.x = x; this.y = y;
@@ -104,25 +125,26 @@ DOMDisplay.prototype.drawBackground = function() {
   return table;
 };
 
-// Draw the player agent
-DOMDisplay.prototype.drawPlayer = function() {
+// Draw the actors
+DOMDisplay.prototype.drawActors = function() {
   // Create a new container div for actor dom elements
   var wrap = elt("div");
 
-  var actor = this.level.player;
+  this.level.actors.forEach(function(actor) {
   var rect = wrap.appendChild(elt("div",
                                     "actor " + actor.type));
   rect.style.width = actor.size.x * scale + "px";
   rect.style.height = actor.size.y * scale + "px";
   rect.style.left = actor.pos.x * scale + "px";
   rect.style.top = actor.pos.y * scale + "px";
+  });
   return wrap;
 };
 
 DOMDisplay.prototype.drawFrame = function() {
   if (this.actorLayer)
     this.wrap.removeChild(this.actorLayer);
-  this.actorLayer = this.wrap.appendChild(this.drawPlayer());
+  this.actorLayer = this.wrap.appendChild(this.drawActors());
   this.scrollPlayerIntoView();
 };
 
@@ -152,40 +174,72 @@ DOMDisplay.prototype.scrollPlayerIntoView = function() {
     this.wrap.scrollTop = center.y + margin - height;
 };
 
+// Return the first obstacle found given a size and position.
+Level.prototype.obstacleAt = function(pos, size) {
+  // Find the "coordinate" of the tile representing left bound
+  var xStart = Math.floor(pos.x);
+  // right bound
+  var xEnd = Math.ceil(pos.x + size.x);
+  // top bound
+  var yStart = Math.floor(pos.y);
+  // Bottom bound
+  var yEnd = Math.ceil(pos.y + size.y);
 
+  // Consider the sides and top and bottom of the level as walls
+  if (xStart < 0 || xEnd > this.width || yStart < 0 || yEnd > this.height)
+    return "wall";
+
+  // Check each grid position starting at yStart, xStart
+  // for a possible obstacle (non null value)
+  for (var y = yStart; y < yEnd; y++) {
+    for (var x = xStart; x < xEnd; x++) {
+      var fieldType = this.grid[y][x];
+      if (fieldType) return fieldType;
+    }
+  }
+};
+
+Level.prototype.actorAt = function(actor) {
+  for (var i=0; i<this.actors.length; i++) {
+    var other = this.actors[i];
+    if (other != actor &&
+    actor.pos.x + actor.size.x > other.pos.x &&
+    actor.pos.x < actor.pos.x + other.size.x &&
+    actor.pos.y + actor.size.y > other.pos.y &&
+    actor.pos.y < other.pos.y + other.size.y)
+    return other;
+  }
+};
 // Update simulation each step based on keys & step size
 Level.prototype.animate = function(step, keys) {
 
   // Ensure each is maximum 100 milliseconds
   while (step > 0) {
     var thisStep = Math.min(step, maxStep);
-      this.player.act(thisStep, this, keys);
-   // Do this by looping across the step size, subtracing either the
+    this.actors.forEach(function(actor) {
+      actor.act(thisStep, this, keys);
+    }, this);
+   // Do this by looping across the step size, subtracting either the
    // step itself or 100 milliseconds
     step -= thisStep;
   }
 };
+var wobbleSpeed = 10;
+var wobbleDist = 0.20;
+Water.prototype.act = function(step) {
+  this.wobble += step * wobbleSpeed;
+  var wobblePos = Math.sin(this.wobble) * wobbleDist;
+  this.pos = this.basePos.plus(new Vector(0, wobblePos));
+};
 
-Level.prototype.obstacleAt = function (pos, size){
-  var xStart = Math.floor(pos.x);
-  var xEnd = Math.ceil(pos.x + size.x);
-  var yStart = Math.floor(pos.y);
-  var yEnd = Math.ceil(pos.y + size.y);
-  //Consider the sides and top and bottom of the level as walls
-  if (xStart < 0 || xEnd > this.width || yStart < 0 || yEnd > this.height)
-  return "wall";
-  //check each grid position starting at yStart, xStart
-  //for possible obstacles (non null value)
-  for (var y=yStart; y<yEnd; y++)
-  {
-    for (var x=xStart; x<xEnd; x++)
-    {
-      var fieldType = this.grid[y][x];
-      if (fieldType)
-      return fieldType;
-    }
-  }
-}
+var shakeSpeed = 2;
+var shakeDist = 4;
+Gatorade.prototype.act = function(step) {
+  this.shake += step * shakeSpeed;
+  var shakePos = Math.sin(this.shake) * shakeDist;
+  this.pos = this.basePos.plus(new Vector(0, shakePos));
+};
+
 var maxStep = 0.05;
 
 var playerXSpeed = 7;
@@ -196,21 +250,23 @@ Player.prototype.moveX = function(step, level, keys) {
   if (keys.right) this.speed.x += playerXSpeed;
 
   var motion = new Vector(this.speed.x * step, 0);
+  // Find out where the player character will be in this frame
   var newPos = this.pos.plus(motion);
-  //find if there is an obstacle at the newPos
+  // Find if there's an obstacle there
   var obstacle = level.obstacleAt(newPos, this.size);
-  //move if there's not a wall otherwise
-  if (obstacle != "wall")
-  this.pos = newPos;
+
+  // Move if there's not a wall there.
+  if(obstacle!="wall")
+    this.pos = newPos;
 };
 
-var gravity = 50;
-var jumpSpeed = 23;
-var playerYSpeed = 7;
+var gravity = 30;
+var jumpSpeed = 17;
+var playerYSpeed = 50;
 
 Player.prototype.moveY = function(step, level, keys) {
-//accelerate player downwards always
-  this.speed.y += step * gravity;
+  // Accelerate player downward (always)
+  this.speed.y += step * gravity;;
   var motion = new Vector(0, this.speed.y * step);
   var newPos = this.pos.plus(motion);
   var obstacle = level.obstacleAt(newPos, this.size);
@@ -218,27 +274,39 @@ Player.prototype.moveY = function(step, level, keys) {
 
     if (obstacle == "lava")
     this.pos = startOver;
-
-//the floor is also an obstacle -- only allow player to jumps
-//if they are toching some obstacles
+  // The floor is also an obstacle -- only allow players to
+  // jump if they are touching some obstacle.
   if (obstacle) {
     if (keys.up && this.speed.y > 0)
-    this.speed.y = -jumpSpeed;
-  else {
-    this.speed.y = 0;
+      this.speed.y = -jumpSpeed;
+    else
+      this.speed.y = 0;
+  } else {
+    this.pos = newPos;
   }
-}
-else {
-  this.pos = newPos;
-}
 };
 
 Player.prototype.act = function(step, level, keys) {
   this.moveX(step, level, keys);
   this.moveY(step, level, keys);
+
+  var otherActor = level.actorAt(this);
+  if(otherActor)
+    level.playerTouched(otherActor.type, otherActor);
 };
 
-
+Level.prototype.playerTouched = function(type, actor) {
+  if(type == 'water'){
+    this.actors = this.actors.filter(function(other) {
+      return other != actor;
+    });
+  };
+  if(type == 'gatorade'){
+    this.actors = this.actors.filter(function(other) {
+      return other != actor;
+    });
+  };
+}
 // Arrow key codes for readibility
 var arrowCodes = {37: "left", 38: "up", 39: "right", 40: "down"};
 
